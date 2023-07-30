@@ -1,13 +1,23 @@
+// Function pointer array to store function pointers with the appropriate signatures
+// Note the use of void (*)() for function pointers that take no parameters and return void
+void (*functionArray[])() = { gradialFill, fillStripWithColor, rainbow };
+
+// Function to run the selected effect based on the index
+void runEffect(int effect) {
+  if (effect >= 0 && effect < sizeof(functionArray) / sizeof(functionArray[0])) {
+    functionArray[effect]();
+  }
+}
+
 void mode() {
   // if just activated play intro animation
   if (activated != active) {
 
-    // intro animation
+    // intro animation only once
     if (activated) {
       if (effect < 1) {
         bouncingIntro();
       } else {
-        // fadeToAnimation(uint32_t targetColor, unsigned long fadeDuration)
         active = activated;
       }
     }
@@ -15,35 +25,73 @@ void mode() {
     // outro animation
     if (!activated) {
       if (effect < 1) {
-        int brightness = fadeFromTo(smoothPotiValue, 0, 4);
-        gradialFill(brightness);
-        powerLed(brightness * maxBrightness);
+        int b = fadeFromTo(smoothPotiValue, 0, 2);
+        gradialFill(b, 0);
+        powerLed(b);
 
-        if (brightness <= 0) {
-          active = activated;
+        if (b <= 0) {
+          active = b;
         }
       } else {
-        // fadeout
+        strip.clear();
+        strip.show();
+        powerLed(0);
       }
     }
-  } 
-  
+  }
+
+
+  // start fade between effects only once
+  if (effect != previousEffect) {
+    runEffectFade = true;
+    logger("start fade");
+    fadeMode();
+    previousEffect = effect;
+  }
+
   if (activated && activated == active) {
 
     switch (effect) {
       case 0:
-        gradialFill(smoothPotiValue);
-        powerLed(smoothPotiValue * maxBrightness);
+        gradialFill(smoothPotiValue, effect);
+        powerLed(smoothPotiValue);
         break;
       case 1:
-        fillStripWithColor(smoothPotiValue);
+        fillStripWithColor(effect);
+        powerLed(secondaryPoti);
         break;
       case 2:
-        rainbow(100);
+        rainbow(100, effect);
+        powerLed(secondaryPoti);
         break;
       default:
         effect = 0;
         break;
     }
+  }
+}
+
+void fadeMode() {
+  while (runEffectFade) {
+    // make a snapeshot of start & end
+    switch (effect) {
+      case 0:
+        rainbow(20, effect);
+        gradialFill(smoothPotiValue, effect);
+        break;
+      case 1:
+        gradialFill(smoothPotiValue, effect);
+        fillStripWithColor(effect);
+        break;
+      case 2:
+        fillStripWithColor(effect);
+        rainbow(20, effect);
+        break;
+      default:
+        effect = 0;
+        break;
+    }
+    // execute fade
+    fadeBetweenEffects();
   }
 }

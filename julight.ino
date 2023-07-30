@@ -10,7 +10,7 @@
 #define LED_PIN 6
 #define NUM_LEDS 48
 #define STRIP_SPLIT_AT 17
-
+#define FADE_DURATION 2000
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRBW + NEO_KHZ800);
 CapacitiveSensor capaSensor = CapacitiveSensor(3, 2);
@@ -18,32 +18,47 @@ Smoothed<int> smooth;
 MultiButton button;
 
 //// VARIABLES
-bool active = false;
-bool activated = false;
+// time
 unsigned long currentTime;          // Store current millis().
 unsigned long previousTime;         // store last measured millis().
 unsigned long pixelPrevious = 0;    // Previous Pixel Millis
 unsigned long patternPrevious = 0;  // Previous Pattern Millis
 int pixelInterval = 50;
-float maxBrightness = 0.2;
-int potiValue = 10;
-int oldPotiValue;
-bool oldBtnState = 1, newBtnState = 1;
+
+// led
+float brightness = 0.2;
+float brightnessLimiter = 0.2;
+// mode
+bool active = false;
+bool activated = false;
 int oldPrintedValue;
-int selectedEffect;
-long capaValue = 0;
+int previousEffect = 0;
+bool effectChange = false;
 int effect = 0;
 int step = 0;
+
+// btn & poti
+int potiValue = 10;
+int secondaryPoti = 0;
+int oldPotiValue;
+long capaValue = 0;
+bool oldBtnState = 1, newBtnState = 1;
 int maxPotiValue = 700;
 int minPotiValue = 40;
 int smoothPotiValue;
 int jitterThreshold = 2;  //reduces led flickering when power source is unstable
+
+//rainbow
 int pixelCycle = 0;
 // fade
-bool fadeRunning = false;
+bool runEffectFade = false;
+bool fadeRun = false;
 int currentIntensity;
 int intensityStep = 1;
-unsigned long fadePrevious = 0;         // store last measured millis().
+uint32_t stripSnapshot[NUM_LEDS - 1];
+uint32_t startColors[NUM_LEDS - 1];
+uint32_t endColors[NUM_LEDS - 1];
+uint32_t stripColors[NUM_LEDS][2];
 
 //// SETUP /////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -52,7 +67,6 @@ void setup() {
   strip.begin();
   strip.setBrightness(80);
   strip.show();
-
   capaSensor.set_CS_AutocaL_Millis(0xFFFFFFFF);
   smooth.begin(SMOOTHED_AVERAGE, 20);
 
@@ -92,37 +106,60 @@ void buttonTick() {
   capaValue = capaSensor.capacitiveSensor(30);
   button.update(capaValue > 150);
 
-  // if (currentTime - previousTime > debounce) {
-  //   if (buttonChanged(capaValue > 150)) {
-  //     if (newBtnState == 1) {
-  //       Serial.println("Button released ");
-  //       effect++;
-  //     } else {
-  //       Serial.println("Button pressed ");
-  //     };
-  //   }
-
-  //   previousTime = currentTime;
-  // }
-}
-
-bool buttonChanged(int bttn) {
-  bool changed = 0;
-  newBtnState = (capaValue > 150);
-  if (newBtnState != oldBtnState) {  // its changed
-    changed = 1;
-    oldBtnState = newBtnState;
+  // while button is pressed add alternative poti mode
+  if (capaValue > 150) {
+    secondaryPoti = smoothPotiValue;
   }
-  return (changed);
+  if (button.isSingleClick()) {
+    Serial.println("on / off");
+    activated = !activated;
+    Serial.println(activated);
+  }
+  if (button.isDoubleClick()) {
+    Serial.println("effect increase");
+    effect++;
+    Serial.println(effect);
+  }
+  if (button.isLongClick()) {
+    Serial.println("long click");
+    // alternative poti mode
+  }
 }
 
-void printStuff() {
-    Serial.print("effect selected: ");
-  Serial.println(effect);
-
-  Serial.print("poti value: ");
-  Serial.println(smoothPotiValue);
+// helper
+void logger(const char* message) {
+  Serial.println(message);
 }
+
+void logger(bool value) {
+  Serial.println(value ? "true" : "false");
+}
+
+void logger(byte value) {
+  Serial.println(value);
+}
+
+void logger(int value) {
+  Serial.println(value);
+}
+
+void logger(float value) {
+  Serial.println(value, 2);  // Print float value with 2 decimal places
+}
+
+// make a snapshot for fade transition
+void fadeSnapshot(int currentEffect, uint32_t pixelColor, int pixelPosition) {
+  int effectNumber = 3; 
+  (currentEffect < effectNumber) ?  (currentEffect + 1) : currentEffect = 0;
+
+  if (fadeRun && effect == (currentEffect + 1)) {
+    stripColors[pixelPosition][0] = pixelColor;
+  }
+  if (fadeRun && effect == currentEffect) {
+    stripColors[pixelPosition][1] = pixelColor;
+  }
+}
+
 
 uint32_t Wheel(byte WheelPos) {
   float blur = 3;  // smaller = longer
@@ -137,3 +174,17 @@ uint32_t Wheel(byte WheelPos) {
   WheelPos -= 170;
   return strip.Color(WheelPos * blur, 255 - WheelPos * blur, 0);
 };
+
+int minutes(int millis) {
+  return 1000 * 60 * millis;
+}
+
+int keepWithinBounds(int input, int min = 0, int max = 255) {
+  if (input > 255) {
+    return input = 255;
+  }
+  if (input < 0) {
+    return input = 0;
+  }
+  return input;
+}
