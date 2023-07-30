@@ -9,8 +9,8 @@
 #define HIGH_POWER_LED_PIN 5
 #define LED_PIN 6
 #define NUM_LEDS 48
-#define STRIP_SPLIT_AT 17
-#define FADE_DURATION 5000
+#define STRIP_SPLIT_AT 16
+#define FADE_DURATION 800
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRBW + NEO_KHZ800);
 CapacitiveSensor capaSensor = CapacitiveSensor(3, 2);
@@ -26,7 +26,7 @@ unsigned long patternPrevious = 0;  // Previous Pattern Millis
 int pixelInterval = 50;
 
 // led
-float brightness = 0.2;
+float brightnessFactor = 0.2;
 float brightnessLimiter = 0.2;
 // mode
 int maxEffects = 3;
@@ -60,6 +60,14 @@ uint32_t stripSnapshot[NUM_LEDS - 1];
 uint32_t startColors[NUM_LEDS - 1];
 uint32_t endColors[NUM_LEDS - 1];
 uint32_t stripColors[NUM_LEDS][2];
+  bool animationInProgress = true;
+
+// declare functions for optional parameter
+void gradialFill(int brightness, bool fadeStart = true);
+void gradialColorFill(int brightness = 255);
+void fillStripWithColor(int brightness, bool fadeStart = true);
+void rainbow(int brightness, bool fadeStart = true);
+void powerLed(int brightness = 255);
 
 //// SETUP /////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -91,13 +99,13 @@ void potiTick() {
 
   // adjust the range to 0-255
   potiValue = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 255);
+  brightnessFactor = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 1000)/1000.0;
   if (potiValue < 0) {
     potiValue = 0;
   }
   if (potiValue > 255) {
     potiValue = 255;
   }
-
   // smooth out the pin value
   smooth.add(potiValue);
   smoothPotiValue = smooth.get();
@@ -128,6 +136,58 @@ void buttonTick() {
 }
 
 // helper
+
+// make a snapshot for fade transition
+void fadeSnapshot(int pixelPosition, uint32_t pixelColor, bool fadeStartEffect) {
+  if (!runEffectFade) return;
+
+  if (fadeStartEffect) {
+    // TODO update snapshot logik
+    for (int i = 0; i < NUM_LEDS; i++) {
+      stripColors[pixelPosition][0] = strip.getPixelColor(i);
+    }
+    // stripColors[pixelPosition][0] = pixelColor;
+  } else {
+    for (int i = 0; i < NUM_LEDS; i++) {
+      stripColors[pixelPosition][0] = strip.getPixelColor(i);
+    }
+    // stripColors[pixelPosition][1] = pixelColor;
+  }
+}
+
+uint32_t Wheel(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+
+  if (WheelPos < 85) {
+    return strip.Color((255 - WheelPos * 3) * brightnessFactor, 0, (WheelPos * 3) * brightnessFactor);
+  }
+  if (WheelPos < 170) {
+    WheelPos -= 85;
+    return strip.Color(0, (WheelPos * 3) * brightnessFactor, 255 - (WheelPos * 3) * brightnessFactor);
+  }
+  WheelPos -= 170;
+  return strip.Color((WheelPos * 3) * brightnessFactor, (255 - WheelPos * 3) * brightnessFactor, 0);
+};
+
+int minutes(int millis) {
+  return 1000 * 60 * millis;
+}
+
+int keepWithinBounds(int input, int min = 0, int max = 255) {
+  if (input > 255) {
+    return input = 255;
+  }
+  if (input < 0) {
+    return input = 0;
+  }
+  return input;
+}
+
+float easeInOutQuad(float t) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+// logger functions
 void logger(const char* message) {
   Serial.println(message);
 }
@@ -150,47 +210,4 @@ void logger(float value) {
 
 void logger(uint32_t value) {
   Serial.println(value);
-}
-
-// make a snapshot for fade transition
-void fadeSnapshot(int currentEffect, uint32_t pixelColor, int pixelPosition) {
-  if (!runEffectFade) return;
-
-  (currentEffect < maxEffects) ? (currentEffect + 1) : currentEffect = 0;
-  // logger(pixelColor);
-  if (effect == (currentEffect + 1)) {
-    stripColors[pixelPosition][0] = pixelColor;
-  }
-  if (effect == currentEffect) {
-    stripColors[pixelPosition][1] = pixelColor;
-  }
-}
-
-
-uint32_t Wheel(byte WheelPos) {
-  float blur = 3;  // smaller = longer
-  WheelPos = 255 - WheelPos;
-  if (WheelPos < 85) {
-    return strip.Color(255 - WheelPos * blur, 0, WheelPos * blur);
-  }
-  if (WheelPos < 170) {
-    WheelPos -= 85;
-    return strip.Color(0, WheelPos * blur, 255 - WheelPos * blur);
-  }
-  WheelPos -= 170;
-  return strip.Color(WheelPos * blur, 255 - WheelPos * blur, 0);
-};
-
-int minutes(int millis) {
-  return 1000 * 60 * millis;
-}
-
-int keepWithinBounds(int input, int min = 0, int max = 255) {
-  if (input > 255) {
-    return input = 255;
-  }
-  if (input < 0) {
-    return input = 0;
-  }
-  return input;
 }

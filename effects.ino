@@ -45,8 +45,8 @@ void bouncingIntro() {
   while (step == 1) {
     currentTime = millis();
 
-    int b = fadeFromTo(0, smoothPotiValue, 04);
-    gradialFill(b, 1);
+    int b = fadeFromTo(0, 255, 4);
+    gradialColorFill(b);
     strip.show();
     powerLed(b + 10);
 
@@ -55,6 +55,25 @@ void bouncingIntro() {
       active = activated;
     }
   }
+}
+
+bool bouncingOutro() {
+  if (currentTime - pixelPrevious >= 100) {
+    strip.setPixelColor(pixelCycle, 0, 0, 0, 0);
+    strip.setPixelColor(STRIP_SPLIT_AT + (STRIP_SPLIT_AT - pixelCycle), 0, 0, 0, 200);
+    strip.show();
+
+    pixelPrevious = currentTime;
+
+    if (pixelCycle > 0) {
+      pixelCycle--;
+    } else {
+      strip.clear(); 
+      strip.show();
+      return true;
+    }
+  }
+  return false;
 }
 
 int fadeFromTo(int start, int target, unsigned long fadeInterval) {
@@ -91,23 +110,30 @@ int fadeFromTo(int start, int target, unsigned long fadeInterval) {
   return currentIntensity;
 }
 
+// TODO: BUG -> flickering at beginnig on animation
 // Function to fade between effects
 void fadeBetweenEffects() {
   // int fadeInterval = 10;
   unsigned long startTime = millis();
   float progress = 0;
   bool once = true;
-  
-   while (progress < 1.0) {
+
+  while (progress < 1.0) {
     currentTime = millis();
     progress = min(1.0, (float)(currentTime - startTime) / FADE_DURATION);
-    // if (currentTime - pixelPrevious >= fadeInterval) {
-    // Update the LED strip for each pixel based on the fade progress
 
+    if (progress < 0.05) {
+      continue;  // Skip updating colors to prevent flickering
+    }
+
+    // Update the LED strip for each pixel based on the fade progress
     for (uint16_t i = 0; i < NUM_LEDS; i++) {
 
       uint32_t startColor = stripColors[i][0];
       uint32_t endColor = stripColors[i][1];
+      uint32_t currentColor;
+      // logger(endColor);
+      // float easedProgress = easeInOutQuad(progress);
 
       // Calculate the blended color value for pixel i between the start and end colors
       uint8_t startW = (startColor >> 24) & 0xFF;
@@ -120,20 +146,23 @@ void fadeBetweenEffects() {
       uint8_t endG = (endColor >> 8) & 0xFF;
       uint8_t endB = endColor & 0xFF;
 
-      // TODO: we need a progress calculation, 0-1, instead of pixelCycle / 255
-      uint8_t currentW = startR + (endW - startW) * progress;
+
+      uint8_t currentW = startW + (endW - startW) * progress;
       uint8_t currentR = startR + (endR - startR) * progress;
       uint8_t currentG = startG + (endG - startG) * progress;
       uint8_t currentB = startB + (endB - startB) * progress;
 
-      uint32_t currentColor = strip.Color(currentR, currentG, currentB, currentW);
+      currentColor = strip.Color(currentR, currentG, currentB, currentW);
 
-      strip.setPixelColor(i, currentColor);
+      // if (i == 0) {
+      //   logger(progress);
+      //   logger(currentColor);
+      // logger(currentW);
+      // logger(currentR);
+      // logger(currentG);
+      // logger(currentB);
       // }
-      pixelCycle++;  //  Advance current cycle
-      if (pixelCycle >= 256)
-        pixelCycle = 0;  //  Loop the cycle back to the begining
-
+      strip.setPixelColor(i, currentColor);
       strip.show();
     }
   }
@@ -143,7 +172,12 @@ void fadeBetweenEffects() {
 
 //// EFFECTS /////////////////////////////////////////////////////////////////////////////////
 
-void gradialFill(int brightness, int currentEffect) {
+void powerLed(int brightness = 255) {
+  analogWrite(HIGH_POWER_LED_PIN, brightness * brightnessFactor * brightnessLimiter);
+}
+
+// TODO remove snapshot code
+void gradialFill(int brightness, bool isFadeStartEffect = true) {
   int numled = 50;
   int curve;
   int reverseCurve;
@@ -153,51 +187,63 @@ void gradialFill(int brightness, int currentEffect) {
     // curve = ((150 * ((float)intensity)) / (255 * (float)i / (float)NUM_LEDS) + 20) - 50;
 
     // linear curve
-    reverseCurve = 2 * i + (brightness * 2 - 66);
+    reverseCurve = 2 * i + (brightness * brightnessFactor * 2 - 66);
     reverseCurve = keepWithinBounds(reverseCurve);
     uint32_t pixelColor = strip.Color(0, 0, 0, reverseCurve);
 
     strip.setPixelColor(i, pixelColor);
-    fadeSnapshot(currentEffect, pixelColor, i);
+    // fadeSnapshot(i, pixelColor, isFadeStartEffect);
   }
 
   for (int i = STRIP_SPLIT_AT; i < NUM_LEDS; i++) {
-    curve = -1 * 2 * i + brightness * 2;
+    curve = -1 * 2 * i + brightness * brightnessFactor * 2;
     curve = keepWithinBounds(curve);
     uint32_t pixelColor = strip.Color(0, 0, 0, curve);
 
     strip.setPixelColor(i, pixelColor);
-    fadeSnapshot(currentEffect, pixelColor, i);
+    fadeSnapshot(i, pixelColor, isFadeStartEffect);
   }
 }
 
-void fillStripWithColor(int currentEffect = 0) {
+void gradialColorFill(int brightness = 255) {
   uint16_t hue = 65555 * smoothPotiValue / 255;
 
   for (int i = 0; i < NUM_LEDS; i++) {
-    uint32_t pixelColor = strip.ColorHSV(hue, 255, 255);
-    strip.setPixelColor(i, pixelColor);
-    fadeSnapshot(currentEffect, pixelColor, i);
-  }
-}
 
-void warmWhite(int warmth) {
-  strip.fill(strip.Color(warmth, warmth / 1.5, 0, 255));
+    int intensity = map(i, 0, NUM_LEDS - 1, brightness * brightnessFactor, 0);
+    uint8_t white = map(i, 0, NUM_LEDS - 1, 0, brightness * brightnessFactor);
+
+    uint32_t rgbColor = strip.ColorHSV(hue, 255, intensity);
+    uint8_t red = (rgbColor >> 16) & 0xFF;
+    uint8_t green = (rgbColor >> 8) & 0xFF;
+    uint8_t blue = rgbColor & 0xFF;
+
+    uint32_t pixelColor = strip.Color(red, green, blue, white);
+
+    strip.setPixelColor(i, pixelColor);
+  }
   strip.show();
 }
 
-void powerLed(int brightness) {
-  analogWrite(HIGH_POWER_LED_PIN, brightness * brightnessLimiter);
+void fillStripWithColor(bool isFadeStartEffect = true) {
+  // if (runEffectFade) logger(isFadeStartEffect);
+  uint16_t hue = 65555 * smoothPotiValue / 255;
+
+  for (int i = 0; i < NUM_LEDS; i++) {
+    uint32_t pixelColor = strip.ColorHSV(hue, 255, 255 * brightnessFactor);
+    strip.setPixelColor(i, pixelColor);
+    fadeSnapshot(i, pixelColor, isFadeStartEffect);
+  }
 }
 
-void rainbow(int delay, int currentEffect) {
+void rainbow(int delay, bool isFadeStartEffect = true) {
 
   if (currentTime - pixelPrevious >= pixelInterval) {
 
     for (uint16_t i = 0; i < NUM_LEDS; i++) {
       uint32_t pixelColor = Wheel((i + pixelCycle) & 255);
       strip.setPixelColor(i, pixelColor);  //  Update delay time
-      fadeSnapshot(currentEffect, pixelColor, i);
+      fadeSnapshot(i, pixelColor, isFadeStartEffect);
     }
     pixelCycle++;  //  Advance current cycle
     if (pixelCycle >= 256)
@@ -205,28 +251,6 @@ void rainbow(int delay, int currentEffect) {
 
     pixelPrevious = currentTime;
   }
-}
-
-void theaterChase(int delay = 20) {
-
-  for (int i = 0; i < NUM_LEDS; i++) {
-    if (runEffectFade) {
-      endColors[i] = strip.Color(255, 10, 0, 10);  //  Update delay time
-    } else {
-      strip.setPixelColor(i + pixelCycle, 255, 10, 0, 10);  //  Set pixel's color (in RAM)
-    }
-  }
-  for (int i = 0; i < NUM_LEDS; i += 3) {
-    if (runEffectFade) {
-      endColors[i] = strip.Color(0, 0, 0);  //  Update delay time
-    } else {
-      strip.setPixelColor(i + pixelCycle, 0, 0, 0);  //  Set pixel's color (in RAM)
-    }
-  }
-  strip.show();  //  Update strip to match
-  pixelCycle++;  //  Advance current pixel
-  if (pixelCycle >= 3)
-    pixelCycle = 0;  //  Loop the pattern from the first LED
 }
 
 void bouncingBalls(byte red, byte green, byte blue, byte white, int BallCount) {
