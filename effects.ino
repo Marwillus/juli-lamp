@@ -93,17 +93,16 @@ int fadeFromTo(int start, int target, unsigned long fadeInterval) {
 
 // Function to fade between effects
 void fadeBetweenEffects() {
-  int fadeInterval = 10;
+  // int fadeInterval = 10;
   unsigned long startTime = millis();
-  // unsigned long currentTime;
-  float progress;
-
-  while (progress < 1.0) {
+  float progress = 0;
+  bool once = true;
+  
+   while (progress < 1.0) {
     currentTime = millis();
     progress = min(1.0, (float)(currentTime - startTime) / FADE_DURATION);
     // if (currentTime - pixelPrevious >= fadeInterval) {
     // Update the LED strip for each pixel based on the fade progress
-    logger("startColor");
 
     for (uint16_t i = 0; i < NUM_LEDS; i++) {
 
@@ -111,23 +110,23 @@ void fadeBetweenEffects() {
       uint32_t endColor = stripColors[i][1];
 
       // Calculate the blended color value for pixel i between the start and end colors
-      // uint8_t startW = (startColor >> 24) & 0xFF;
+      uint8_t startW = (startColor >> 24) & 0xFF;
       uint8_t startR = (startColor >> 16) & 0xFF;
       uint8_t startG = (startColor >> 8) & 0xFF;
       uint8_t startB = startColor & 0xFF;
 
-      // uint8_t endW = (endColor >> 24) & 0xFF;
+      uint8_t endW = (endColor >> 24) & 0xFF;
       uint8_t endR = (endColor >> 16) & 0xFF;
       uint8_t endG = (endColor >> 8) & 0xFF;
       uint8_t endB = endColor & 0xFF;
 
       // TODO: we need a progress calculation, 0-1, instead of pixelCycle / 255
-      // uint8_t currentW = startR + (endW - startW) * pixelCycle / 255;
+      uint8_t currentW = startR + (endW - startW) * progress;
       uint8_t currentR = startR + (endR - startR) * progress;
       uint8_t currentG = startG + (endG - startG) * progress;
       uint8_t currentB = startB + (endB - startB) * progress;
 
-      uint32_t currentColor = strip.Color(currentR, currentG, currentB);
+      uint32_t currentColor = strip.Color(currentR, currentG, currentB, currentW);
 
       strip.setPixelColor(i, currentColor);
       // }
@@ -156,8 +155,10 @@ void gradialFill(int brightness, int currentEffect) {
     // linear curve
     reverseCurve = 2 * i + (brightness * 2 - 66);
     reverseCurve = keepWithinBounds(reverseCurve);
+    uint32_t pixelColor = strip.Color(0, 0, 0, reverseCurve);
 
-    strip.setPixelColor(i, 0, 0, 0, reverseCurve);
+    strip.setPixelColor(i, pixelColor);
+    fadeSnapshot(currentEffect, pixelColor, i);
   }
 
   for (int i = STRIP_SPLIT_AT; i < NUM_LEDS; i++) {
@@ -172,20 +173,11 @@ void gradialFill(int brightness, int currentEffect) {
 
 void fillStripWithColor(int currentEffect = 0) {
   uint16_t hue = 65555 * smoothPotiValue / 255;
-  // strip.fill((strip.ColorHSV(hue, 255, 255)));
 
   for (int i = 0; i < NUM_LEDS; i++) {
     uint32_t pixelColor = strip.ColorHSV(hue, 255, 255);
     strip.setPixelColor(i, pixelColor);
     fadeSnapshot(currentEffect, pixelColor, i);
-
-    // make a snapshot for fade transition
-    // if (runEffectFade && effect == 2) {
-    //   stripColors[i][0] = (strip.ColorHSV(hue, 255, 255));
-    // }
-    // if (runEffectFade && effect == 1) {
-    //   stripColors[i][1] = (strip.ColorHSV(hue, 255, 255));
-    // }
   }
 }
 

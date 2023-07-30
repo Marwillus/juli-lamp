@@ -10,7 +10,7 @@
 #define LED_PIN 6
 #define NUM_LEDS 48
 #define STRIP_SPLIT_AT 17
-#define FADE_DURATION 2000
+#define FADE_DURATION 5000
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRBW + NEO_KHZ800);
 CapacitiveSensor capaSensor = CapacitiveSensor(3, 2);
@@ -29,6 +29,7 @@ int pixelInterval = 50;
 float brightness = 0.2;
 float brightnessLimiter = 0.2;
 // mode
+int maxEffects = 3;
 bool active = false;
 bool activated = false;
 int oldPrintedValue;
@@ -118,7 +119,7 @@ void buttonTick() {
   if (button.isDoubleClick()) {
     Serial.println("effect increase");
     effect++;
-    Serial.println(effect);
+    if (effect >= maxEffects) effect = 0;
   }
   if (button.isLongClick()) {
     Serial.println("long click");
@@ -147,15 +148,20 @@ void logger(float value) {
   Serial.println(value, 2);  // Print float value with 2 decimal places
 }
 
+void logger(uint32_t value) {
+  Serial.println(value);
+}
+
 // make a snapshot for fade transition
 void fadeSnapshot(int currentEffect, uint32_t pixelColor, int pixelPosition) {
-  int effectNumber = 3; 
-  (currentEffect < effectNumber) ?  (currentEffect + 1) : currentEffect = 0;
+  if (!runEffectFade) return;
 
-  if (fadeRun && effect == (currentEffect + 1)) {
+  (currentEffect < maxEffects) ? (currentEffect + 1) : currentEffect = 0;
+  // logger(pixelColor);
+  if (effect == (currentEffect + 1)) {
     stripColors[pixelPosition][0] = pixelColor;
   }
-  if (fadeRun && effect == currentEffect) {
+  if (effect == currentEffect) {
     stripColors[pixelPosition][1] = pixelColor;
   }
 }

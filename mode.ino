@@ -41,6 +41,8 @@ void mode() {
   }
 
 
+  if (!activated) return;
+
   // start fade between effects only once
   if (effect != previousEffect) {
     runEffectFade = true;
@@ -49,8 +51,8 @@ void mode() {
     previousEffect = effect;
   }
 
-  if (activated && activated == active) {
-
+  // normal running mode
+  if (activated == active) {
     switch (effect) {
       case 0:
         gradialFill(smoothPotiValue, effect);
@@ -74,6 +76,8 @@ void mode() {
 void fadeMode() {
   while (runEffectFade) {
     // make a snapeshot of start & end
+    logger("effect while fade");
+    logger(effect);
     switch (effect) {
       case 0:
         rainbow(20, effect);
@@ -88,7 +92,7 @@ void fadeMode() {
         rainbow(20, effect);
         break;
       default:
-        effect = 0;
+        //nothing
         break;
     }
     // execute fade
