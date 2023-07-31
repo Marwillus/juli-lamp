@@ -46,7 +46,7 @@ void bouncingIntro() {
     currentTime = millis();
 
     int b = fadeFromTo(0, 255, 4);
-    gradialColorFill(b);
+    gradialFill(b);
     strip.show();
     powerLed(b + 10);
 
@@ -58,21 +58,27 @@ void bouncingIntro() {
 }
 
 bool bouncingOutro() {
-  if (currentTime - pixelPrevious >= 100) {
-    strip.setPixelColor(pixelCycle, 0, 0, 0, 0);
-    strip.setPixelColor(STRIP_SPLIT_AT + (STRIP_SPLIT_AT - pixelCycle), 0, 0, 0, 200);
+
+  if (currentTime - pixelPrevious >= pixelInterval) {
+    int paintCurrentPixel = (STRIP_SPLIT_AT - pixelCycle);
+    strip.setPixelColor(paintCurrentPixel, 0, 0, 0, 200);
+    strip.setPixelColor(paintCurrentPixel + 1, 0, 0, 0, 0);
     strip.show();
 
-    pixelPrevious = currentTime;
-
-    if (pixelCycle > 0) {
-      pixelCycle--;
+    if (pixelCycle < STRIP_SPLIT_AT) {
+      pixelCycle++;
+      pixelInterval--;
     } else {
-      strip.clear(); 
+      pixelInterval = 30;
+      pixelCycle = 0;
+      strip.clear();
       strip.show();
       return true;
     }
+
+    pixelPrevious = currentTime;
   }
+
   return false;
 }
 
@@ -201,7 +207,7 @@ void gradialFill(int brightness, bool isFadeStartEffect = true) {
     uint32_t pixelColor = strip.Color(0, 0, 0, curve);
 
     strip.setPixelColor(i, pixelColor);
-    fadeSnapshot(i, pixelColor, isFadeStartEffect);
+    // fadeSnapshot(i, pixelColor, isFadeStartEffect);
   }
 }
 
@@ -232,7 +238,7 @@ void fillStripWithColor(bool isFadeStartEffect = true) {
   for (int i = 0; i < NUM_LEDS; i++) {
     uint32_t pixelColor = strip.ColorHSV(hue, 255, 255 * brightnessFactor);
     strip.setPixelColor(i, pixelColor);
-    fadeSnapshot(i, pixelColor, isFadeStartEffect);
+    // fadeSnapshot(i, pixelColor, isFadeStartEffect);
   }
 }
 
@@ -243,7 +249,7 @@ void rainbow(int delay, bool isFadeStartEffect = true) {
     for (uint16_t i = 0; i < NUM_LEDS; i++) {
       uint32_t pixelColor = Wheel((i + pixelCycle) & 255);
       strip.setPixelColor(i, pixelColor);  //  Update delay time
-      fadeSnapshot(i, pixelColor, isFadeStartEffect);
+      // fadeSnapshot(i, pixelColor, isFadeStartEffect);
     }
     pixelCycle++;  //  Advance current cycle
     if (pixelCycle >= 256)

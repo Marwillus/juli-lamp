@@ -1,5 +1,4 @@
 void mode() {
-
   // if just activated play intro animation
   if (activated != active) {
 
@@ -14,19 +13,21 @@ void mode() {
 
     // outro animation
     if (!activated) {
-      int b = fadeFromTo(smoothPotiValue, 0, 2);
+      int b = fadeFromTo((255 * brightnessFactor), 0, 2);
       gradialFill(b);
-      powerLed(b);
-
+      powerLed(b + 10);
+      animationInProgress = true;
       if (b <= 0) {
-        // TODO outro animation
-        // if (animationInProgress) {
-        //   bool done = bouncingOutro();
-        //   if (done) {
-        // animationInProgress = false;  // Animation completed, prevent further execution
-        active = b;
-        //   }
-        // }
+        delay(200);
+        powerLed(0);
+        while (animationInProgress) {
+          currentTime = millis();
+          bool done = bouncingOutro();
+          if (done) {
+            animationInProgress = false;  // Animation completed, prevent further execution
+            active = b;
+          }
+        }
       }
     }
   }
@@ -46,16 +47,21 @@ void mode() {
   if (activated == active) {
     switch (effect) {
       case 0:
-        // gradialFill(smoothPotiValue);
-        gradialColorFill();
-
+        gradialFill(255);
         break;
+
       case 1:
         fillStripWithColor();
         break;
+
       case 2:
         rainbow(100);
         break;
+
+      case 3:
+        gradialColorFill();
+        break;
+
       default:
         effect = 0;
         break;
@@ -70,18 +76,35 @@ void fadeMode() {
     logger("effect while fade");
     logger(effect);
     switch (effect) {
+
       case 0:
-        rainbow(20);
+        gradialColorFill(20);
+        fadeSnapshot(true);
         gradialFill(smoothPotiValue, false);
+        fadeSnapshot(false);
         break;
+
       case 1:
         gradialFill(smoothPotiValue);
+        fadeSnapshot(true);
         fillStripWithColor(false);
+        fadeSnapshot(false);
         break;
+
       case 2:
         fillStripWithColor();
+        fadeSnapshot(true);
         rainbow(20, false);
+        fadeSnapshot(false);
         break;
+
+      case 3:
+        rainbow(20);
+        fadeSnapshot(true);
+        gradialColorFill();
+        fadeSnapshot(false);
+        break;
+
       default:
         return;
     }

@@ -15,14 +15,14 @@ void loop() {
   // if (currentTime - pixelPrevious >= pixelInterval) {
   //   pixelPrevious = currentTime;
 
-    // prevent flickering & unnessesary calculation
-    // if (smoothPotiValue <= oldPotiValue - jitterThreshold || smoothPotiValue >= oldPotiValue + jitterThreshold || selectedEffect != oldSelectedEffect) {
+  // prevent flickering & unnessesary calculation
+  // if (smoothPotiValue <= oldPotiValue - jitterThreshold || smoothPotiValue >= oldPotiValue + jitterThreshold || selectedEffect != oldSelectedEffect) {
 
-    //  Run current frame
-    mode();
-    
-    // update the strip
-    strip.show();
-  
-    // }
-  }
+  //  Run current frame
+  mode();
+
+  // update the strip
+  strip.show();
+
+  // }
+}

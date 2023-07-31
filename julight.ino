@@ -23,19 +23,19 @@ unsigned long currentTime;          // Store current millis().
 unsigned long previousTime;         // store last measured millis().
 unsigned long pixelPrevious = 0;    // Previous Pixel Millis
 unsigned long patternPrevious = 0;  // Previous Pattern Millis
-int pixelInterval = 50;
+int pixelInterval = 20;
 
 // led
 float brightnessFactor = 0.2;
 float brightnessLimiter = 0.2;
 // mode
-int maxEffects = 3;
 bool active = false;
 bool activated = false;
 int oldPrintedValue;
 int previousEffect = 0;
 bool effectChange = false;
 int effect = 0;
+int maxEffects = 4;
 int step = 0;
 
 // btn & poti
@@ -60,10 +60,11 @@ uint32_t stripSnapshot[NUM_LEDS - 1];
 uint32_t startColors[NUM_LEDS - 1];
 uint32_t endColors[NUM_LEDS - 1];
 uint32_t stripColors[NUM_LEDS][2];
-  bool animationInProgress = true;
+bool animationInProgress = true;
 
-// declare functions for optional parameter
-void gradialFill(int brightness, bool fadeStart = true);
+  // declare functions for optional parameter
+  void
+  gradialFill(int brightness, bool fadeStart = true);
 void gradialColorFill(int brightness = 255);
 void fillStripWithColor(int brightness, bool fadeStart = true);
 void rainbow(int brightness, bool fadeStart = true);
@@ -99,7 +100,7 @@ void potiTick() {
 
   // adjust the range to 0-255
   potiValue = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 255);
-  brightnessFactor = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 1000)/1000.0;
+  brightnessFactor = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 1000) / 1000.0;
   if (potiValue < 0) {
     potiValue = 0;
   }
@@ -138,20 +139,18 @@ void buttonTick() {
 // helper
 
 // make a snapshot for fade transition
-void fadeSnapshot(int pixelPosition, uint32_t pixelColor, bool fadeStartEffect) {
+void fadeSnapshot(bool fadeStartEffect) {
   if (!runEffectFade) return;
 
   if (fadeStartEffect) {
     // TODO update snapshot logik
     for (int i = 0; i < NUM_LEDS; i++) {
-      stripColors[pixelPosition][0] = strip.getPixelColor(i);
+      stripColors[i][0] = strip.getPixelColor(i);
     }
-    // stripColors[pixelPosition][0] = pixelColor;
   } else {
     for (int i = 0; i < NUM_LEDS; i++) {
-      stripColors[pixelPosition][0] = strip.getPixelColor(i);
+      stripColors[i][1] = strip.getPixelColor(i);
     }
-    // stripColors[pixelPosition][1] = pixelColor;
   }
 }
 
