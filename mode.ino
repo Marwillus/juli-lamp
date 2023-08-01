@@ -4,73 +4,73 @@ void mode() {
 
     // intro animation only once
     if (activated) {
-      if (effect < 1) {
-        bouncingIntro();
-      } else {
-        active = activated;
-      }
+      bouncingIntro();
+      fadeAllIn();
     }
 
     // outro animation
     if (!activated) {
-      int b = fadeFromTo((255 * brightnessFactor), 0, 2);
-      gradialFill(b);
-      powerLed(b + 10);
-      animationInProgress = true;
-      if (b <= 0) {
-        delay(200);
-        powerLed(0);
-        while (animationInProgress) {
-          currentTime = millis();
-          bool done = bouncingOutro();
-          if (done) {
-            animationInProgress = false;  // Animation completed, prevent further execution
-            active = b;
-          }
-        }
-      }
+      fadeAllOut();
+      bouncingOutro();
+      // animationInProgress = true;
+      // if (brightnessFactor <= 0) {
+      //   delay(200);
+      //   powerLed();
+      //   while (animationInProgress) {
+      //     currentTime = millis();
+      //     bool done = bouncingOutro();
+      //     if (done) {
+      //       animationInProgress = false;  // Animation completed, prevent further execution
+      //       active = false;
+      //     }
+      //   }
+      // }
     }
   }
-
 
   if (!activated) return;
 
-  // start fade between effects only once
-  if (effect != previousEffect) {
-    runEffectFade = true;
-    logger("start fade");
-    fadeMode();
-    previousEffect = effect;
-  }
-
-  // normal running mode
   if (activated == active) {
-    switch (effect) {
-      case 0:
-        gradialFill(255);
-        break;
-
-      case 1:
-        fillStripWithColor();
-        break;
-
-      case 2:
-        rainbow(100);
-        break;
-
-      case 3:
-        gradialColorFill();
-        break;
-
-      default:
-        effect = 0;
-        break;
+    // start fade between effects only once
+    if (effect != previousEffect) {
+      runEffectFade = true;
+      logger("start fade");
+      fadeModes();
+      previousEffect = effect;
     }
-    powerLed(smoothPotiValue);
+
+    runMode();
   }
 }
 
-void fadeMode() {
+// runs one frame of the selected effect
+void runMode() {
+  switch (effect) {
+    case 0:
+      gradialFill();
+      break;
+
+    case 1:
+      fillStripWithColor();
+      break;
+
+    case 2:
+      rainbow();
+      break;
+
+    case 3:
+      gradialColorFill();
+      break;
+
+    default:
+      effect = 0;
+      break;
+  }
+  powerLed();
+}
+
+// runs one animation between the effects
+void fadeModes() {
   while (runEffectFade) {
     // make a snapeshot of start & end
     logger("effect while fade");
@@ -78,28 +78,28 @@ void fadeMode() {
     switch (effect) {
 
       case 0:
-        gradialColorFill(20);
+        gradialColorFill();
         fadeSnapshot(true);
-        gradialFill(smoothPotiValue, false);
+        gradialFill();
         fadeSnapshot(false);
         break;
 
       case 1:
-        gradialFill(smoothPotiValue);
+        gradialFill();
         fadeSnapshot(true);
-        fillStripWithColor(false);
+        fillStripWithColor();
         fadeSnapshot(false);
         break;
 
       case 2:
         fillStripWithColor();
         fadeSnapshot(true);
-        rainbow(20, false);
+        rainbow();
         fadeSnapshot(false);
         break;
 
       case 3:
-        rainbow(20);
+        rainbow();
         fadeSnapshot(true);
         gradialColorFill();
         fadeSnapshot(false);

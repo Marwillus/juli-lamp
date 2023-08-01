@@ -4,18 +4,20 @@
 #include <CapacitiveSensor.h>
 #include <Smoothed.h>
 #include <MultiButton.h>
+#include "EasingLib.h"
 
 #define POTENTIOMETER_POTI 0
 #define HIGH_POWER_LED_PIN 5
 #define LED_PIN 6
 #define NUM_LEDS 48
 #define STRIP_SPLIT_AT 16
-#define FADE_DURATION 800
+#define FADE_DURATION 500
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRBW + NEO_KHZ800);
 CapacitiveSensor capaSensor = CapacitiveSensor(3, 2);
 Smoothed<int> smooth;
 MultiButton button;
+Easing easeInSlow(ease_mode::EASE_IN_CUBIC, FADE_DURATION);
 
 //// VARIABLES
 // time
@@ -26,49 +28,34 @@ unsigned long patternPrevious = 0;  // Previous Pattern Millis
 int pixelInterval = 20;
 
 // led
-float brightnessFactor = 0.2;
 float brightnessLimiter = 0.2;
 // mode
 bool active = false;
 bool activated = false;
-int oldPrintedValue;
 int previousEffect = 0;
 bool effectChange = false;
 int effect = 0;
-int maxEffects = 4;
-int step = 0;
+bool animationInProgress = true;
 
 // btn & poti
-int potiValue = 10;
-int secondaryPoti = 0;
-int oldPotiValue;
+int potiValue = 100;
+float brightnessFactor = 0.2;
+float effectFactor = 1.0;
 long capaValue = 0;
-bool oldBtnState = 1, newBtnState = 1;
+int longPressDelay = 500;
+int oldPotiValue;
 int maxPotiValue = 700;
 int minPotiValue = 40;
-int smoothPotiValue;
-int jitterThreshold = 2;  //reduces led flickering when power source is unstable
+int jitterThreshold = 2;  //reduces led flickering when power source is unstable 
 
-//rainbow
+// effects
 int pixelCycle = 0;
-// fade
 bool runEffectFade = false;
 bool fadeRun = false;
 int currentIntensity;
-int intensityStep = 1;
-uint32_t stripSnapshot[NUM_LEDS - 1];
-uint32_t startColors[NUM_LEDS - 1];
-uint32_t endColors[NUM_LEDS - 1];
+float intensityStep = 0.02;
 uint32_t stripColors[NUM_LEDS][2];
-bool animationInProgress = true;
 
-  // declare functions for optional parameter
-  void
-  gradialFill(int brightness, bool fadeStart = true);
-void gradialColorFill(int brightness = 255);
-void fillStripWithColor(int brightness, bool fadeStart = true);
-void rainbow(int brightness, bool fadeStart = true);
-void powerLed(int brightness = 255);
 
 //// SETUP /////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -79,9 +66,6 @@ void setup() {
   strip.show();
   capaSensor.set_CS_AutocaL_Millis(0xFFFFFFFF);
   smooth.begin(SMOOTHED_AVERAGE, 20);
-
-  oldBtnState = (capaValue > 150);
-  newBtnState = oldBtnState;
 }
 
 //// FUNCTIONS /////////////////////////////////////////////////////////////////////////////////
@@ -98,28 +82,27 @@ void potiTick() {
     maxPotiValue = rawPotiValue;
   }
 
-  // adjust the range to 0-255
-  potiValue = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 255);
-  brightnessFactor = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 1000) / 1000.0;
-  if (potiValue < 0) {
-    potiValue = 0;
-  }
-  if (potiValue > 255) {
-    potiValue = 255;
-  }
+  potiValue = map(rawPotiValue, minPotiValue, maxPotiValue, 0, 1000);
   // smooth out the pin value
   smooth.add(potiValue);
-  smoothPotiValue = smooth.get();
+  brightnessFactor = smooth.get() / 1000.0;
 }
 
+// checks button update
 void buttonTick() {
   capaValue = capaSensor.capacitiveSensor(30);
   button.update(capaValue > 150);
 
-  // while button is pressed add alternative poti mode
-  if (capaValue > 150) {
-    secondaryPoti = smoothPotiValue;
-  }
+  // if (button.isClick()) {
+  //   pixelPrevious = currentTime;
+  // }
+  // if (capaValue > 150) {
+  //   if (currentTime - pixelPrevious >= longPressDelay) {
+  //     effectFactor = brightnessFactor;
+  //     logger("add secondary value");
+  //     logger(effectFactor);
+  //   }
+  // }
   if (button.isSingleClick()) {
     Serial.println("on / off");
     activated = !activated;
@@ -128,7 +111,7 @@ void buttonTick() {
   if (button.isDoubleClick()) {
     Serial.println("effect increase");
     effect++;
-    if (effect >= maxEffects) effect = 0;
+    logger(effect);
   }
   if (button.isLongClick()) {
     Serial.println("long click");
