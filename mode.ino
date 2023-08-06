@@ -2,8 +2,8 @@ void mode() {
   // if just activated play intro animation
   if (activated != active) {
 
-    // intro animation only once
-    if (activated) {
+      // intro animation only once
+      if (activated) {
       bouncingIntro();
       fadeAllIn();
     }
@@ -12,20 +12,8 @@ void mode() {
     if (!activated) {
       fadeAllOut();
       bouncingOutro();
-      // animationInProgress = true;
-      // if (brightnessFactor <= 0) {
-      //   delay(200);
-      //   powerLed();
-      //   while (animationInProgress) {
-      //     currentTime = millis();
-      //     bool done = bouncingOutro();
-      //     if (done) {
-      //       animationInProgress = false;  // Animation completed, prevent further execution
-      //       active = false;
-      //     }
-      //   }
-      // }
     }
+    active = activated;
   }
 
   if (!activated) return;

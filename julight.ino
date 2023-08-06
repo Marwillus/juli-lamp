@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <FastLED.h>
 #include <Adafruit_NeoPixel.h>
 #include <CapacitiveSensor.h>
 #include <Smoothed.h>
@@ -11,13 +10,15 @@
 #define LED_PIN 6
 #define NUM_LEDS 48
 #define STRIP_SPLIT_AT 16
-#define FADE_DURATION 500
+#define FADE_DURATION_SLOW 500
+#define FADE_DURATION_FAST 100
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRBW + NEO_KHZ800);
 CapacitiveSensor capaSensor = CapacitiveSensor(3, 2);
 Smoothed<int> smooth;
 MultiButton button;
-Easing easeInSlow(ease_mode::EASE_IN_CUBIC, FADE_DURATION);
+Easing easeInSlow(ease_mode::EASE_IN_CUBIC, FADE_DURATION_SLOW);
+Easing easeInOutFast(ease_mode::EASE_IN_CUBIC, FADE_DURATION_FAST);
 
 //// VARIABLES
 // time
@@ -25,7 +26,6 @@ unsigned long currentTime;          // Store current millis().
 unsigned long previousTime;         // store last measured millis().
 unsigned long pixelPrevious = 0;    // Previous Pixel Millis
 unsigned long patternPrevious = 0;  // Previous Pattern Millis
-int pixelInterval = 20;
 
 // led
 float brightnessLimiter = 0.2;
@@ -40,13 +40,14 @@ bool animationInProgress = true;
 // btn & poti
 int potiValue = 100;
 float brightnessFactor = 0.2;
+float clipBrightnessFactor;
 float effectFactor = 1.0;
 long capaValue = 0;
-int longPressDelay = 500;
+int longPressDelay = 800;
 int oldPotiValue;
 int maxPotiValue = 700;
 int minPotiValue = 40;
-int jitterThreshold = 2;  //reduces led flickering when power source is unstable 
+int jitterThreshold = 2;  //reduces led flickering when power source is unstable
 
 // effects
 int pixelCycle = 0;
@@ -93,16 +94,17 @@ void buttonTick() {
   capaValue = capaSensor.capacitiveSensor(30);
   button.update(capaValue > 150);
 
-  // if (button.isClick()) {
-  //   pixelPrevious = currentTime;
-  // }
-  // if (capaValue > 150) {
-  //   if (currentTime - pixelPrevious >= longPressDelay) {
-  //     effectFactor = brightnessFactor;
-  //     logger("add secondary value");
-  //     logger(effectFactor);
-  //   }
-  // }
+  if (button.isClick()) {
+      logger("click");
+    pixelPrevious = currentTime;
+    clipBrightnessFactor = brightnessFactor;
+  }
+  if (capaValue > 150) {
+    if (currentTime - pixelPrevious >= longPressDelay) {
+      effectFactor = brightnessFactor;
+      brightnessFactor = clipBrightnessFactor;
+    }
+  }
   if (button.isSingleClick()) {
     Serial.println("on / off");
     activated = !activated;
@@ -113,13 +115,9 @@ void buttonTick() {
     effect++;
     logger(effect);
   }
-  if (button.isLongClick()) {
-    Serial.println("long click");
-    // alternative poti mode
-  }
 }
 
-// helper
+// HELPER
 
 // make a snapshot for fade transition
 void fadeSnapshot(bool fadeStartEffect) {
@@ -139,16 +137,25 @@ void fadeSnapshot(bool fadeStartEffect) {
 
 uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
+  byte r, g, b;
 
   if (WheelPos < 85) {
-    return strip.Color((255 - WheelPos * 3) * brightnessFactor, 0, (WheelPos * 3) * brightnessFactor);
-  }
-  if (WheelPos < 170) {
+    r = (255 - WheelPos * 3) * brightnessFactor;
+    g = 0;
+    b = (WheelPos * 3) * brightnessFactor;
+  } else if (WheelPos < 170) {
     WheelPos -= 85;
-    return strip.Color(0, (WheelPos * 3) * brightnessFactor, 255 - (WheelPos * 3) * brightnessFactor);
+    r = 0;
+    g = (WheelPos * 3) * brightnessFactor;
+    b = (255 - WheelPos * 3) * brightnessFactor;
+  } else {
+    WheelPos -= 170;
+    r = (WheelPos * 3) * brightnessFactor;
+    g = (255 - WheelPos * 3) * brightnessFactor;
+    b = 0;
   }
-  WheelPos -= 170;
-  return strip.Color((WheelPos * 3) * brightnessFactor, (255 - WheelPos * 3) * brightnessFactor, 0);
+
+  return strip.gamma32(strip.Color(r, g, b));
 };
 
 int minutes(int millis) {
@@ -156,17 +163,13 @@ int minutes(int millis) {
 }
 
 int keepWithinBounds(int input, int min = 0, int max = 255) {
-  if (input > 255) {
-    return input = 255;
+  if (input > max) {
+    return input = max;
   }
-  if (input < 0) {
-    return input = 0;
+  if (input < min) {
+    return input = min;
   }
   return input;
-}
-
-float easeInOutQuad(float t) {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
 
 // logger functions

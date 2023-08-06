@@ -18,6 +18,7 @@ void bouncingIntro() {
   Position = 0;
   ImpactVelocity = ImpactVelocityStart;
   TimeSinceLastBounce = 0;
+  animationInProgress = true;
 
   // one ball jump
   while (animationInProgress) {
@@ -42,46 +43,22 @@ void bouncingIntro() {
     }
   }
 }
+
 // bounces one pixel from split led to 0
-// bool bouncingOutro() {
-
-//   if (currentTime - pixelPrevious >= pixelInterval) {
-//     int paintCurrentPixel = (STRIP_SPLIT_AT - pixelCycle);
-//     strip.setPixelColor(paintCurrentPixel, 0, 0, 0, 200);
-//     strip.setPixelColor(paintCurrentPixel + 1, 0, 0, 0, 0);
-//     strip.show();
-
-//     if (pixelCycle < STRIP_SPLIT_AT) {
-//       pixelCycle++;
-//       pixelInterval--;
-//     } else {
-//       pixelInterval = 30;
-//       pixelCycle = 0;
-//       strip.clear();
-//       strip.show();
-//       return true;
-//     }
-
-//     pixelPrevious = currentTime;
-//   }
-
-//   return false;
-// }
-
 void bouncingOutro() {
-  unsigned long startTime = millis();  // Get the current time in milliseconds
-  float fromTo = 1;
-  int splitLed = STRIP_SPLIT_AT;
+  unsigned long startTime = millis();
+  easeInSlow.Init(1);
+  easeInOutFast.Init(brightnessFactor);
 
-  while (millis() - startTime <= FADE_DURATION) {
-    logger(easeInSlow.SetSetpoint(fromTo));
-    int pixel = splitLed * easeInSlow.SetSetpoint(fromTo);
-    //revert pixel
-    pixel = pixel + (pixel - splitLed);
-    logger(pixel);
-    strip.setPixelColor(pixel + 1, 0, 0, 0, 0);
-    strip.setPixelColor(pixel, 0, 0, 0, 200);
+  while (millis() - startTime <= FADE_DURATION_SLOW) {
+    brightnessFactor = easeInOutFast.SetSetpoint(0);
+    powerLed();
+
+    int pixel = STRIP_SPLIT_AT * easeInSlow.SetSetpoint(0);
+    // strip.setPixelColor(pixel, 0, 0, 0, 0);
+    strip.setPixelColor(pixel - 1, 0, 0, 0, 200);
     strip.show();
+    strip.clear();
   }
 }
 
@@ -120,38 +97,50 @@ float fadeFromTo(float start, float target, unsigned long fadeInterval) {
   return currentIntensity;
 }
 
-// fades powerled and strip to 0
-void fadeAllOut() {
-  float initialBrightness = brightnessFactor;
-  unsigned long startTime = millis();  // Get the current time in milliseconds
-  float fromTo = initialBrightness;
-
-  while (millis() - startTime <= FADE_DURATION) {
-    brightnessFactor = easeInSlow.SetSetpoint(fromTo);
-    fromTo = 0;
-    runMode();
-    strip.show();
+// let powerled blink
+void smoothBlink() {
+  unsigned long startTime = millis();
+  easeInOutFast.Init(0);
+  while (millis() - startTime <= FADE_DURATION_FAST) {
+    brightnessFactor = easeInOutFast.SetSetpoint(0.5);
     powerLed();
   }
-  active = activated;
+  easeInOutFast.Init(0.5);
+  startTime = millis();
+  while (millis() - startTime <= FADE_DURATION_FAST) {
+    brightnessFactor = easeInOutFast.SetSetpoint(0);
+    powerLed();
+  }
 }
 
 // TODO repair ease out
 // fades powerled and strip to selected brightness
 void fadeAllIn() {
   float initialBrightness = brightnessFactor;
-  unsigned long startTime = millis();  // Get the current time in milliseconds
-  float fromTo = 0;
-  logger(initialBrightness);
+  unsigned long startTime = millis();
+  easeInSlow.Init(0.1);
 
-  while (millis() - startTime <= FADE_DURATION) {
-    brightnessFactor = easeInSlow.SetSetpoint(fromTo);
-    fromTo = initialBrightness;
+  while (millis() - startTime <= FADE_DURATION_SLOW) {
+    easeInSlow.SetSetpoint(initialBrightness);
+    brightnessFactor = easeInSlow.GetValue();
     runMode();
     strip.show();
     powerLed();
   }
-  active = activated;
+}
+
+// fades powerled and strip to 0
+void fadeAllOut() {
+  float initialBrightness = brightnessFactor;
+  unsigned long startTime = millis();
+  easeInSlow.Init(initialBrightness);
+
+  while (millis() - startTime <= FADE_DURATION_SLOW) {
+    brightnessFactor = easeInSlow.SetSetpoint(0.1);
+    runMode();
+    strip.show();
+    powerLed();
+  }
 }
 
 // TODO: BUG -> flickering at beginnig on animation
@@ -162,34 +151,42 @@ void fadeBetweenEffects() {
   float progress = 0;
   bool once = true;
 
+  uint32_t startColor;
+  uint32_t endColor;
+  uint32_t currentColor;
+
+  // Calculate the blended color value for pixel i between the start and end colors
+  uint8_t startW;
+  uint8_t startR;
+  uint8_t startG;
+  uint8_t startB;
+
+  uint8_t endW;
+  uint8_t endR;
+  uint8_t endG;
+  uint8_t endB;
+
   while (progress < 1.0) {
     currentTime = millis();
-    progress = min(1.0, (float)(currentTime - startTime) / FADE_DURATION);
-
-    if (progress < 0.05) {
-      continue;  // Skip updating colors to prevent flickering
-    }
+    progress = min(1.0, (float)(currentTime - startTime) / FADE_DURATION_SLOW);
 
     // Update the LED strip for each pixel based on the fade progress
     for (uint16_t i = 0; i < NUM_LEDS; i++) {
 
-      uint32_t startColor = stripColors[i][0];
-      uint32_t endColor = stripColors[i][1];
-      uint32_t currentColor;
-      // logger(endColor);
-      // float easedProgress = easeInOutQuad(progress);
+      startColor = stripColors[i][0];
+      endColor = stripColors[i][1];
+      currentColor;
 
       // Calculate the blended color value for pixel i between the start and end colors
-      uint8_t startW = (startColor >> 24) & 0xFF;
-      uint8_t startR = (startColor >> 16) & 0xFF;
-      uint8_t startG = (startColor >> 8) & 0xFF;
-      uint8_t startB = startColor & 0xFF;
+      startW = (startColor >> 24) & 0xFF;
+      startR = (startColor >> 16) & 0xFF;
+      startG = (startColor >> 8) & 0xFF;
+      startB = startColor & 0xFF;
 
-      uint8_t endW = (endColor >> 24) & 0xFF;
-      uint8_t endR = (endColor >> 16) & 0xFF;
-      uint8_t endG = (endColor >> 8) & 0xFF;
-      uint8_t endB = endColor & 0xFF;
-
+      endW = (endColor >> 24) & 0xFF;
+      endR = (endColor >> 16) & 0xFF;
+      endG = (endColor >> 8) & 0xFF;
+      endB = endColor & 0xFF;
 
       uint8_t currentW = startW + (endW - startW) * progress;
       uint8_t currentR = startR + (endR - startR) * progress;
@@ -198,16 +195,10 @@ void fadeBetweenEffects() {
 
       currentColor = strip.Color(currentR, currentG, currentB, currentW);
 
-      // if (i == 0) {
-      //   logger(progress);
-      //   logger(currentColor);
-      // logger(currentW);
-      // logger(currentR);
-      // logger(currentG);
-      // logger(currentB);
-      // }
       strip.setPixelColor(i, currentColor);
-      strip.show();
+      if (progress > 0.1) {
+        strip.show();  // Skip updating colors to prevent flickering
+      }
     }
   }
   logger("end fade");
@@ -246,25 +237,29 @@ void gradialFill() {
 }
 
 void gradialColorFill() {
-  uint16_t hue = 65555 * brightnessFactor;
+  uint16_t hue = 65555 * effectFactor;
 
   for (int i = 0; i < NUM_LEDS; i++) {
 
-    int intensity = map(i, 0, NUM_LEDS - 1, 255 * brightnessFactor, 0);
-    uint8_t white = map(i, 0, NUM_LEDS - 1, 0, 255 * brightnessFactor);
+    int intensity = map(i, 0, NUM_LEDS - 1, 255, 0);
+    uint8_t white = map(i, 0, NUM_LEDS - 1, 0, 255);
 
-    uint32_t rgbColor = strip.ColorHSV(hue, 255, intensity);
+    uint32_t rgbColor = strip.gamma32(strip.ColorHSV(hue, 255, intensity * brightnessFactor));
     uint8_t red = (rgbColor >> 16) & 0xFF;
     uint8_t green = (rgbColor >> 8) & 0xFF;
     uint8_t blue = rgbColor & 0xFF;
 
-    strip.setPixelColor(i, strip.Color(red, green, blue, white));
+    strip.setPixelColor(i, strip.Color(
+                             red,
+                             green,
+                             blue,
+                             white * brightnessFactor));
   }
   strip.show();
 }
 
 void fillStripWithColor() {
-  uint16_t hue = 65555 * brightnessFactor;
+  uint16_t hue = 65555 * effectFactor;
 
   for (int i = 0; i < NUM_LEDS; i++) {
     strip.setPixelColor(i, strip.ColorHSV(hue, 255, 255 * brightnessFactor));
@@ -273,7 +268,7 @@ void fillStripWithColor() {
 
 void rainbow() {
 
-  if (currentTime - pixelPrevious >= pixelInterval * effectFactor) {
+  if (currentTime - pixelPrevious >= 100 * effectFactor) {
 
     for (uint16_t i = 0; i < NUM_LEDS; i++) {
       uint32_t pixelColor = Wheel((i + pixelCycle) & 255);
@@ -284,53 +279,5 @@ void rainbow() {
       pixelCycle = 0;  //  Loop the cycle back to the begining
 
     pixelPrevious = currentTime;
-  }
-}
-
-void bouncingBalls(byte red, byte green, byte blue, byte white, int BallCount) {
-  float gravity = -9.81;
-  int StartHeight = 1;
-
-  float Height[BallCount];
-  float ImpactVelocityStart = sqrt(-2 * gravity * StartHeight);
-  float ImpactVelocity[BallCount];
-  float TimeSinceLastBounce[BallCount];
-  int Position[BallCount];
-  long ClockTimeSinceLastBounce[BallCount];
-  float Dampening[BallCount];
-
-  for (int i = 0; i < BallCount; i++) {
-    ClockTimeSinceLastBounce[i] = millis();
-    Height[i] = StartHeight;
-    Position[i] = 0;
-    ImpactVelocity[i] = ImpactVelocityStart;
-    TimeSinceLastBounce[i] = 0;
-    Dampening[i] = 0.90 - float(i) / pow(BallCount, 2);
-  }
-
-  while (true) {
-    for (int i = 0; i < BallCount; i++) {
-      TimeSinceLastBounce[i] = millis() - ClockTimeSinceLastBounce[i];
-      Height[i] = 0.5 * gravity * pow(TimeSinceLastBounce[i] / 1000, 2.0) + ImpactVelocity[i] * TimeSinceLastBounce[i] / 1000;
-
-      if (Height[i] < 0) {
-        Height[i] = 0;
-        ImpactVelocity[i] = Dampening[i] * ImpactVelocity[i];
-        ClockTimeSinceLastBounce[i] = millis();
-
-        if (ImpactVelocity[i] < 0.01) {
-
-          ImpactVelocity[i] = ImpactVelocityStart;
-        }
-      }
-      Position[i] = round(Height[i] * (NUM_LEDS - 1) / StartHeight);
-    }
-
-    for (int i = 0; i < BallCount; i++) {
-      strip.setPixelColor(Position[i], red, green, blue, white);
-    }
-
-    strip.show();
-    strip.fill(0, 0, 0);
   }
 }
